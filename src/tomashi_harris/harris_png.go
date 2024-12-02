@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"image"
 	"image/color"
-	"image/png"
 	"image/draw"
+	"image/png"
+	"math"
 	"os"
 	"sort"
-	"math"
 )
 
 
@@ -49,38 +49,38 @@ func median(arr []int) int {
 	return arr[mid]
 }
 
-func saveGrayImage(img *image.Gray, filePath string) error {
-	f, err := os.Create(filePath)
-	if err != nil {
-		return err
+// func saveGrayImage(img *image.Gray, filePath string) error {
+// 	f, err := os.Create(filePath)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	defer f.Close()
+// 	return png.Encode(f, img)
+// }
+
+
+func convolution(img image.Image, kernel [3][3]int, minX int, minY int, maxX int, maxY int) [][]int {
+
+    newImg := make([][]int, maxY)
+	for i := range newImg {
+		newImg[i] = make([]int, maxX)
 	}
-	defer f.Close()
-	return png.Encode(f, img)
-}
 
-
-func convolution(img image.Image, kernel [3][3]int) [][]int {
-
-    bounds := img.Bounds()
-
-    newImg := [][] int{};
-
-	// Laplace Kernel
-    // kernel := [3][3]int{ 
-    //     {1, 1, 1}, 
-    //     {1, -8, 1}, 
-    //     {1, 1, 1}, 
-    // }
 	// Taking convolution at each point
-	for y := 1; y < bounds.Max.Y-1; y++ {
-        for x := 1; x < bounds.Max.X-1; x++ {
+	for y := minY; y < maxY; y++ {
+        for x := minX; x < maxX; x++ {
 			// Convolution with  kernel
             var sum int = 0;
 			for i:=-1; i<2; i++ {
 				for j:=-1; j<2; j++ {
-					r, g, b, _ := img.At(x+i, y+j).RGBA()
-					grayVal := uint8(0.299*float64(r) + 0.587*float64(g) + 0.114*float64(b) / 256) 
-					sum += int(grayVal) * kernel[j+1][i+1]
+					// Handle boundary conditions
+					imgX := x + i
+					imgY := y + j
+					if imgX >= minX && imgX < maxX && imgY >= minY && imgY < maxY {
+						r, g, b, _ := img.At(imgX, imgY).RGBA()
+						grayVal := uint8(0.299*float64(r) + 0.587*float64(g) + 0.114*float64(b) / 256)
+						sum += int(grayVal) * kernel[j+1][i+1]
+					}
 				}
 			}
 			
@@ -89,18 +89,14 @@ func convolution(img image.Image, kernel [3][3]int) [][]int {
 			} else if sum > 255 {
 				sum = 255
 			}
-            // newImgSet(x, y, color.Gray{Y: uint8(math.Abs(float64(sum)))})
 			newImg[x][y] = sum
-
         }
     }
     return newImg
 }
 
 func main(){
-	fmt.Println("hey")
-
-	img, err := getPNGImageFromFilePath("mountain.png")
+	img, err := getPNGImageFromFilePath("initial.png")
 	if err != nil {
 		fmt.Println("Error: ", err)
 		return
@@ -115,8 +111,6 @@ func main(){
 	window := 3
 	threshold := 10; //threshold to pass for harris 
 	minDist := 10; //the minimum distance between any 2 points
-	// width := maxX - minX;
-	// height := maxY - minY
 
 	Corners := make([][3]float64, 0)
 
@@ -140,6 +134,13 @@ func main(){
 	// applying harris corner detection algorithm on each point in image
 	// finding derivatives of each point and making differential square matrix	
 
+	// Laplace Kernel
+    // kernel := [3][3]int{ 
+    //     {1, 1, 1}, 
+    //     {1, -8, 1}, 
+    //     {1, 1, 1}, 
+    // }
+
 	// sobel matrices that are used to calculate derivative matrices using convolution
 	sobelX := [3][3]int{
 		{-1, 0, 1},
@@ -157,8 +158,8 @@ func main(){
 	Ixy := [][] int{};
 
 	// dx and dy using Sobel kernels
-	dx := (convolution(img, sobelX))
-	dy := (convolution(img, sobelY))
+	dx := (convolution(img, sobelX, minX, minY, maxX, maxY))
+	dy := (convolution(img, sobelY, minX, minY, maxX, maxY))
 
 	//  Ixx and Iyy (squared gradients)
 	for y := 0; y < maxY; y++ {
